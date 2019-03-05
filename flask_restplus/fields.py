@@ -20,7 +20,7 @@ from .utils import camel_to_dash, not_none
 
 __all__ = ('Raw', 'String', 'FormattedString', 'Url', 'DateTime', 'Date',
            'Boolean', 'Integer', 'Float', 'Arbitrary', 'Fixed',
-           'Nested', 'List', 'ClassName', 'Polymorph',
+           'Nested', 'List', 'Collection', 'ClassName', 'Polymorph',
            'StringMixin', 'MinMaxMixin', 'NumberMixin', 'MarshallingError')
 
 
@@ -308,6 +308,62 @@ class List(Raw):
         model = kwargs.pop('container')
         if mask:
             model = mask.apply(model)
+        return self.__class__(model, **kwargs)
+
+
+class Collection(Raw):
+    '''
+    Field for marshalling collections of other fields.
+
+    :param cls_or_instance: The field type the collection will contain.
+    '''
+    def __init__(self, cls_or_instance, **kwargs):
+        super(Collection, self).__init__(**kwargs)
+        error_msg = 'The type of the collection elements must be a subclass of fields.Raw'
+        if isinstance(cls_or_instance, type):
+            if not issubclass(cls_or_instance, Raw):
+                raise MarshallingError(error_msg)
+            self.container = cls_or_instance()
+        else:
+            if not isinstance(cls_or_instance, Raw):
+                raise MarshallingError(error_msg)
+            self.container = cls_or_instance
+
+    def format(self, value):
+        # Convert all instances in typed list to container type
+        value = dict(value)
+
+        is_nested = isinstance(self.container, Nested) or type(self.container) is Raw
+
+        def is_attr(val):
+            return self.container.attribute and hasattr(val, self.container.attribute)
+
+        return {
+            key: self.container.output(key,
+                val if (isinstance(val, dict) or is_attr(val)) and not is_nested else value)
+            for key, val in iteritems(value)
+        }
+
+    def output(self, key, data, ordered=False, **kwargs):
+        value = get_value(key if self.attribute is None else self.attribute, data)
+        # we cannot really test for external dict behavior
+        if is_indexable_but_not_string(value) and not isinstance(value, dict):
+            return self.format(value)
+
+        if value is None:
+            return self._v('default')
+
+        return [marshal(value, self.container.nested)]
+
+    def schema(self):
+        schema = super(Collection, self).schema()
+        schema['type'] = 'object'
+        schema['additionalProperties'] = self.container.__schema__
+        return schema
+
+    def clone(self):
+        kwargs = self.__dict__.copy()
+        model = kwargs.pop('container')
         return self.__class__(model, **kwargs)
 
 
