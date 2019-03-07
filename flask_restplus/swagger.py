@@ -511,10 +511,15 @@ class Swagger(object):
 
         elif isinstance(model, fields.Collection):
             self.register_field(model)
-            model = model.container
+            if model.example is not None:
+                return {
+                    'type': 'object',
+                    'additionalProperties': self.serialize_schema(model.container),
+                    'example': model.example,
+                }
             return {
                 'type': 'object',
-                'additionalProperties': self.serialize_schema(model),
+                'additionalProperties': self.serialize_schema(model.container),
             }
 
         elif isinstance(model, ModelBase):
