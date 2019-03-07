@@ -315,6 +315,13 @@ class Swagger(object):
                         'in': 'body',
                         'schema': self.serialize_schema(expect),
                     })
+            elif isinstance(expect, fields.Collection):
+                params['payload'] = not_none({
+                    'name': 'payload',
+                    'required': True,
+                    'in': 'body',
+                    'schema': self.serialize_schema(expect),
+                })
         return params
 
     def register_errors(self):
