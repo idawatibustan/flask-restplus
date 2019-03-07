@@ -509,6 +509,14 @@ class Swagger(object):
                 'items': self.serialize_schema(model),
             }
 
+        elif isinstance(model, fields.Collection):
+            self.register_field(model)
+            model = model.container
+            return {
+                'type': 'object',
+                'additionalProperties': self.serialize_schema(model),
+            }
+
         elif isinstance(model, ModelBase):
             self.register_model(model)
             return ref(model)
